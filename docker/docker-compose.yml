@@ -1,114 +1,143 @@
-version: "3.8"
+# =============================================================================
+# Stack MING -- IoT Edge sur Raspberry Pi
+# Mosquitto (MQTT broker) + InfluxDB (time-series DB) + Node-RED (flows) + Grafana (dashboard)
+#
+# Cours : Internet des Objets -- Mastere 1 Ynov
+# Seance : S5-S6 (Module 3)
+# Auteur : Baptiste Ochlafen
+# Date : 2026-03-20
+#
+# Utilisation :
+#   cd ~/ming
+#   docker-compose up -d
+#   docker ps                  # verifier que les 4 services sont "Up"
+#   docker-compose logs -f     # suivre les logs en temps reel
+#   docker-compose down        # arreter la stack
+#
+# Acces web (remplacer <IP_RPI> par l'adresse IP du Raspberry Pi) :
+#   Node-RED  : http://<IP_RPI>:1880
+#   Grafana   : http://<IP_RPI>:3000   (admin / admin)
+#   InfluxDB  : http://<IP_RPI>:8086   (setup initial au premier acces)
+#
+# Licences :
+#   Mosquitto   : EPL 2.0 / EDL 1.0
+#   InfluxDB    : MIT / Apache 2.0
+#   Node-RED    : Apache 2.0
+#   Grafana     : AGPL v3 (usage logiciel OK)
+# =============================================================================
 
-# Stack MING -- Mosquitto + InfluxDB + Node-RED + Grafana
-# Déploiement sur Raspberry Pi (ARM)
-#
-# Usage :
-#   Démarrer  : docker-compose up -d
-#   Arrêter   : docker-compose down
-#   Logs      : docker-compose logs -f [service]
-#   Status    : docker ps
-#
-# IMPORTANT : modifier les variables d'environnement avant le premier démarrage.
-#             Ne pas committer ce fichier avec des mots de passe réels.
+version: "3.8"
 
 services:
 
   # ---------------------------------------------------------------------------
-  # Mosquitto -- Broker MQTT (port 1883 non chiffré, 8883 TLS)
+  # MOSQUITTO -- Broker MQTT
+  # Port 1883 : MQTT non chiffre (reseau local uniquement)
+  # Les messages publies par les devices ou Node-RED transitent par ce broker.
   # ---------------------------------------------------------------------------
   mosquitto:
-    image: eclipse-mosquitto:2.0
+    image: eclipse-mosquitto:2
     container_name: mosquitto
     restart: unless-stopped
     ports:
-      - "1883:1883"   # MQTT non chiffré (désactiver en prod après S8)
-      - "8883:8883"   # MQTT TLS (activé après S8)
+      - "1883:1883"
     volumes:
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
-      - mosquitto_logs:/mosquitto/log
-      # Monter les certificats TLS (générés en S8) :
-      # - ./mosquitto/certs:/mosquitto/certs:ro
+      - mosquitto_log:/mosquitto/log
     networks:
-      - iot_network
+      - ming
 
   # ---------------------------------------------------------------------------
-  # InfluxDB -- Base de données série temporelle
-  # ---------------------------------------------------------------------------
-  influxdb:
-    image: influxdb:2.7
-    container_name: influxdb
-    restart: unless-stopped
-    ports:
-      - "8086:8086"
-    environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=TODO_CHANGER_MOT_DE_PASSE   # TODO
-      - DOCKER_INFLUXDB_INIT_ORG=ynov
-      - DOCKER_INFLUXDB_INIT_BUCKET=iot_data
-      - DOCKER_INFLUXDB_INIT_RETENTION=30d
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=TODO_CHANGER_TOKEN        # TODO
-    volumes:
-      - influxdb_data:/var/lib/influxdb2
-    networks:
-      - iot_network
-
-  # ---------------------------------------------------------------------------
-  # Node-RED -- Traitement des flux IoT
+  # NODE-RED -- Moteur de flows (low-code)
+  # Port 1880 : interface web
+  # Connecte au broker Mosquitto local (mosquitto:1883) et au broker TTN (distant).
+  # Les flows traitent les messages MQTT et ecrivent dans InfluxDB.
   # ---------------------------------------------------------------------------
   nodered:
-    image: nodered/node-red:3.1
+    image: nodered/node-red:latest
     container_name: nodered
     restart: unless-stopped
     ports:
       - "1880:1880"
-    environment:
-      - TZ=Europe/Paris
     volumes:
       - nodered_data:/data
-      # Importer automatiquement les flows au démarrage :
-      # - ./nodered/flows.json:/data/flows.json:ro
-    networks:
-      - iot_network
+    environment:
+      - TZ=Europe/Paris
     depends_on:
       - mosquitto
-      - influxdb
+    networks:
+      - ming
 
   # ---------------------------------------------------------------------------
-  # Grafana -- Visualisation des données
+  # INFLUXDB -- Base de donnees temporelle
+  # Port 8086 : interface web + API HTTP
+  # Stocke les mesures IoT (temperature, humidite, luminosite...) avec timestamps.
+  # Configuration initiale au premier acces : organisation, bucket, token.
+  # ---------------------------------------------------------------------------
+  influxdb:
+    image: influxdb:2
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    environment:
+      - TZ=Europe/Paris
+      # Pour un setup automatique (optionnel, decommenter si besoin) :
+      # - DOCKER_INFLUXDB_INIT_MODE=setup
+      # - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      # - DOCKER_INFLUXDB_INIT_PASSWORD=iotcampus2026
+      # - DOCKER_INFLUXDB_INIT_ORG=iot-campus
+      # - DOCKER_INFLUXDB_INIT_BUCKET=iot_data
+      # - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=mon-token-iot-campus
+    networks:
+      - ming
+
+  # ---------------------------------------------------------------------------
+  # GRAFANA -- Tableau de bord / visualisation
+  # Port 3000 : interface web
+  # Se connecte a InfluxDB pour afficher les donnees sous forme de graphiques,
+  # jauges et alertes. Utilisé en S7-S8 pour le dashboard final.
   # ---------------------------------------------------------------------------
   grafana:
-    image: grafana/grafana-oss:10.4.0
+    image: grafana/grafana:latest
     container_name: grafana
     restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=TODO_CHANGER_MOT_DE_PASSE  # TODO
-      - GF_USERS_ALLOW_SIGN_UP=false   # Hardening S8 : désactive l'enregistrement public
     volumes:
       - grafana_data:/var/lib/grafana
-    networks:
-      - iot_network
+    environment:
+      - TZ=Europe/Paris
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
       - influxdb
+    networks:
+      - ming
 
-# ---------------------------------------------------------------------------
-# Volumes persistants
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# VOLUMES -- Persistance des donnees
+# Les volumes nommes survivent aux "docker-compose down" et "docker-compose up".
+# Pour tout supprimer : docker-compose down -v
+# -----------------------------------------------------------------------------
 volumes:
   mosquitto_data:
-  mosquitto_logs:
-  influxdb_data:
+  mosquitto_log:
   nodered_data:
+  influxdb_data:
+  influxdb_config:
   grafana_data:
 
-# ---------------------------------------------------------------------------
-# Réseau interne Docker
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# RESEAU -- Communication inter-services
+# Tous les conteneurs sont sur le meme reseau "ming".
+# Ils se joignent par nom de service : mosquitto, nodered, influxdb, grafana.
+# Exemple : depuis Node-RED, le broker local est accessible via "mosquitto:1883".
+# -----------------------------------------------------------------------------
 networks:
-  iot_network:
+  ming:
     driver: bridge
