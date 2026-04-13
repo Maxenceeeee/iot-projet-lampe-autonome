@@ -30,12 +30,12 @@ ESP32 (capteur) communique en LoRaWAN (OTAA, SF7, EU868) vers un RAK3172, puis T
 
 | Livrable | Fichier | Statut |
 |---|---|---|
-| Code Arduino complet | arduino/main/main.ino | TODO |
+| Code Arduino complet | arduino/main/main.ino | DONE |
 | Configuration secrets | arduino/config.h.example | TODO |
 | Flow Node-RED exporte | nodered/flows.json | TODO |
-| Dashboard Grafana exporte | grafana/dashboard.json | TODO |
-| docker-compose.yml | docker/docker-compose.yml | TODO |
-| Configuration Mosquitto | docker/mosquitto/mosquitto.conf | TODO |
+| Dashboard Grafana exporte | grafana/dashboard.json | DONE |
+| docker-compose.yml | docker/docker-compose.yml | DONE |
+| Configuration Mosquitto | docker/mosquitto/mosquitto.conf | DONE |
 | Schema d'architecture | docs/architecture.md | TODO |
 | Fiche RGPD | docs/rgpd.md | TODO |
 
