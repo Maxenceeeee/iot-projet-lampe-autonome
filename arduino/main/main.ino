@@ -2,13 +2,13 @@
  * Projet Final IoT -- Module 5
  * Mastere Expert Dev Logiciel / Mobile / IoT -- Ynov Campus 2025-2026
  *
- * Description : [TODO -- décrire votre cas d'usage en 1-2 lignes]
- *               Ex: Station météo connectée -- mesure température + humidité
+ * Description : Lampe autonome connectée -- ESP32 + RAK3172 + Module de photorésistance LDR LDR LM393
+ *               Lecture de l'état lumineux (sombre / lumineux) via un module photorésistance LDR LM393 à sortie numérique (DO), et envoi LoRaWAN OTAA vers TTN toutes les 60 secondes.
  *                   Transmission LoRaWAN vers TTN -> Node-RED -> InfluxDB -> Grafana
  *
- * Matériel    : ESP32 + RAK3172 + [votre capteur]
- * Auteur(s)   : [TODO -- Prenom Nom]
- * Date        : [TODO -- date de creation]
+ * Matériel    : ESP32 + RAK3172 + Module de photorésistance LDR LDR LM393
+ * Auteur(s)   : Guillet Evan + Frappier Maxence
+ * Date        : 02-03-2026
  *
  * Chaîne complète :
  *   Capteur -> ESP32 -> RAK3172 -> LoRaWAN -> TTN -> MQTT -> Node-RED -> InfluxDB -> Grafana
@@ -23,163 +23,296 @@
 #include "config.h"
 
 // TODO : inclure la bibliothèque de votre capteur
-// Ex: #include <DHT.h>         (DHT22)
-//     #include <Adafruit_BMP280.h>  (BMP280)
-//     #include <Wire.h>        (I2C générique)
+// Aucune bibliothèque spécifique pour une photorésistance LDR -- lecture analogique directe 
 
 // ---------------------------------------------------------------------------
 // Variables globales persistantes (RTC Memory -- survivent au Deep Sleep)
 // ---------------------------------------------------------------------------
-RTC_DATA_ATTR int boot_count = 0;  // Compteur de cycles (diagnostic)
+RTC_DATA_ATTR int boot_count = 0; // Compteur de cycles (diagnostic)
+bool loraJoined  = false; // Statut de la connexion OTAA
+unsigned long dernierEnvoi = 0; // Horodatage du dernier envoi (ms)
 
 // ---------------------------------------------------------------------------
 // Prototypes de fonctions
 // ---------------------------------------------------------------------------
-float lire_capteur();
-String encoder_payload(float valeur);
-bool envoyer_lora(String payload_hex);
-void attente_join(int timeout_s);
+void setLED(uint8_t r, uint8_t g, uint8_t b) {
+  ledcWrite(LED_R, r);
+  ledcWrite(LED_G, g);
+  ledcWrite(LED_B, b);
+}
 
 // ---------------------------------------------------------------------------
 // setup() -- Execute a chaque reveil (Deep Sleep = reset complet)
 // ---------------------------------------------------------------------------
 void setup() {
-    Serial.begin(115200);
-    boot_count++;
-    Serial.printf("[INFO] Démarrage -- cycle #%d\n", boot_count);
+  // Initialisation du port série de débogage (moniteur série)
+  Serial.begin(115200);
+  delay(1000);
 
-    // -- Initialisation capteur --
-    // TODO : initialiser votre capteur ici
-    // Ex: dht.begin();
-    //     if (!bmp.begin(0x76)) { Serial.println("[ERREUR] BMP280 non trouve"); }
+  Serial.println("\n============================================================");
+  Serial.println(" ESP32-D + LDR LM393 + RAK3272S + LED RGB — LoRaWAN OTAA");
+  Serial.println("============================================================\n");
 
-    // -- Lecture de la valeur --
-    float valeur = lire_capteur();
-    Serial.printf("[CAPTEUR] Valeur mesurée : %.2f\n", valeur);
+  // Initialisation Serial2 pour la communication AT avec le RAK3272S
+  Serial2.begin(115200, SERIAL_8N1, RXD2, TXD2);
+  delay(300);
 
-    // -- Encodage du payload --
-    String payload_hex = encoder_payload(valeur);
-    Serial.printf("[LORA] Payload hex : %s\n", payload_hex.c_str());
+  // --- Configuration LED RGB (LEDC PWM) ---
+  // Canal 0 → Rouge | Canal 1 → Vert | Canal 2 → Bleu
+  // Fréquence 5000 Hz, résolution 8 bits (0–255)
+  ledcAttach(LED_R, 5000, 8);
+  ledcAttach(LED_G, 5000, 8);
+  ledcAttach(LED_B, 5000, 8);
+  setLED(0, 0, 0); // LED éteinte au démarrage
+  Serial.println("[LED] RGB initialisée — GPIO18(R) GPIO19(G) GPIO23(B)");
 
-    // -- Envoi LoRaWAN --
-    bool succes = envoyer_lora(payload_hex);
-    if (!succes) {
-        Serial.println("[ERREUR] Échec envoi LoRa -- passage en Deep Sleep quand même");
-    }
+  // Configuration de la broche DO du module LDR en entrée numérique
+  // Aucun pull-up interne : le module LM393 pilote activement la broche
+  pinMode(LDR_PIN, INPUT);
+  Serial.println("[LDR] Module LM393 initialisé sur GPIO32 (sortie numérique DO)");
 
-    // -- Deep Sleep jusqu'au prochain cycle --
-    Serial.printf("[SLEEP] Mise en veille pour %d secondes\n", SLEEP_DURATION_S);
-    Serial.flush();
-    esp_sleep_enable_timer_wakeup((uint64_t)SLEEP_DURATION_S * 1000000ULL);
-    esp_deep_sleep_start();
+  // Test de lecture initiale du capteur + allumage LED selon état
+  Serial.println("\n--- Test Capteur LDR ---");
+  testLDR();
+
+  // Envoi des commandes AT de configuration LoRaWAN au RAK3272S
+  Serial.println("\n--- Configuration LoRaWAN ---");
+  configurerLoRa();
+
+  // Lancement du Join OTAA (attente jusqu'à 60 secondes)
+  Serial.println("\n--- Join OTAA TTN ---");
+  joinOTAA();
+
+  Serial.println("\n--- Prêt ---");
+  Serial.println("Envoi automatique toutes les 60 secondes.");
+  Serial.println("Commandes disponibles : SEND | TEST | JOIN\n");
 }
 
 // ---------------------------------------------------------------------------
 // loop() -- Jamais atteint (Deep Sleep provoque un réinitialisation)
 // ---------------------------------------------------------------------------
-void loop() {}
+void loop() {
+  // --- Mise à jour LED RGB en temps réel ---
+  // Lecture de l'état courant et mise à jour de la couleur
+  int etatLDR = lireLDR();
+  if (etatLDR == 1) {
+    // LUMINEUX → blanc chaud (255, 255, 200)
+    setLED(255, 255, 200);
+  } else {
+    // SOMBRE → rouge/violet très foncé (20, 0, 30)
+    setLED(20, 0, 30);
+  }
+
+  // --- Envoi automatique périodique ---
+  // Vérifie que le join OTAA est actif et que l'intervalle est écoulé
+  if (loraJoined && (millis() - dernierEnvoi >= INTERVALLE_ENVOI)) {
+    envoyerDonnees();
+    dernierEnvoi = millis();
+  }
+
+  // --- Commandes manuelles depuis le moniteur série ---
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    cmd.toUpperCase();
+
+    if (cmd == "SEND") {
+      Serial.println("\n[CMD] Envoi manuel");
+      envoyerDonnees();
+    }
+    else if (cmd == "TEST") {
+      Serial.println("\n[CMD] Test capteur LDR");
+      testLDR();
+    }
+    else if (cmd == "JOIN") {
+      Serial.println("\n[CMD] Join OTAA manuel");
+      joinOTAA();
+    }
+    else if (cmd.startsWith("AT")) {
+      // Transmission directe d'une commande AT brute au RAK3272S
+      envoyerAT(cmd, 2000);
+    }
+  }
+
+  // --- Écoute des événements asynchrones du RAK3272S ---
+  // Le RAK envoie des événements (+EVT:JOINED, etc.) de façon autonome
+  while (Serial2.available()) {
+    String evt = Serial2.readStringUntil('\n');
+    evt.trim();
+    if (evt.length() > 0) {
+      Serial.println("[RAK] " + evt);
+      // Mise à jour du statut de connexion selon l'événement reçu
+      if (evt.indexOf("+EVT:JOINED") >= 0)      loraJoined = true;
+      if (evt.indexOf("+EVT:JOIN_FAILED") >= 0) loraJoined = false;
+    }
+  }
+}
 
 // ===========================================================================
 // FONCTIONS METIER -- A implementer
 // ===========================================================================
 
 /**
- * lire_capteur()
- * Lit la valeur brute du capteur et la retourne en grandeur physique.
- * Retourne -999.0 en cas d'erreur de lecture.
- *
- * TODO : implémenter selon votre capteur
+ * lireLDR()
+ * Lit la valeur du capteur LDR et retourne 1 si lumineux, 0 si sombre.
  */
-float lire_capteur() {
-    // Exemple DHT22 :
-    //   float t = dht.readTemperature();
-    //   if (isnan(t)) return -999.0;
-    //   return t;
+int lireLDR() {
+  int somme = 0;
 
-    // Exemple BMP280 :
-    //   return bmp.readTemperature();
+  for (int i = 0; i < NB_LECTURES_DO; i++) {
+    somme += digitalRead(LDR_PIN); // Lecture numérique : 0 (LOW) ou 1 (HIGH)
+    delay(10);                     // Pause entre lectures pour stabilité
+  }
 
-    // TODO : remplacer par votre implementation
-    return -999.0;  // Placeholder
+  // Retourne 1 si la majorité des lectures est HIGH (≥ 3 sur 5)
+  return (somme >= (NB_LECTURES_DO / 2 + 1)) ? 0 : 1;
 }
 
 /**
- * encoder_payload()
- * Encode une valeur flottante en payload hexadécimal LoRaWAN 2 octets.
- * Convention : valeur * 10 -> int16 -> 2 octets big-endian (ex: 23.5 -> 235 -> "00EB")
- *
- * Adapter le facteur de multiplication selon votre capteur :
- *   - Température (0.1 degrés) : valeur * 10
- *   - Humidité (0.1 %) : valeur * 10
- *   - Pression (entier hPa) : (int)valeur
+ * testLDR() — Affichage de l'état courant sur le moniteur série
  */
-String encoder_payload(float valeur) {
-    if (valeur <= -999.0) return "FFFF";  // Code d'erreur
+void testLDR() {
+  int val = lireLDR();
 
-    // TODO : adapter le facteur selon votre grandeur physique
-    int16_t raw = (int16_t)(valeur * 10.0);  // Ex: 23.5 °C -> 235
+  // Mise à jour LED selon l'état au moment du test
+  if (val == 1) {
+    setLED(255, 255, 200); // Blanc chaud → LUMINEUX
+  } else {
+    setLED(20, 0, 30);     // Violet sombre → SOMBRE
+  }
 
-    char buf[5];
-    snprintf(buf, sizeof(buf), "%04X", (uint16_t)raw);
-    return String(buf);
+  Serial.println("✅ LDR LM393 fonctionnel (sortie numérique DO)");
+  Serial.print("   État         : ");
+  Serial.println(val == 1 ? "LUMINEUX  (DO = HIGH) → LED blanc chaud"
+                          : "SOMBRE    (DO = LOW)  → LED violet foncé");
+  Serial.println("   ℹ️  Ajustez la vis (potentiomètre) pour régler le seuil de détection.");
+  Serial.println("      La micro LED du module s'allume au franchissement du seuil.\n");
 }
 
 /**
- * envoyer_lora()
- * Configure le module RAK3172, effectue le Join OTAA si nécessaire,
- * et envoie le payload sur le port 2.
- * Retourne true si l'envoi est confirmé, false sinon.
- *
- * TODO : vérifier les pins UART selon votre câblage
- *        Par défaut : RAK3172 sur UART2 (GPIO 16=RX, 17=TX)
+ * envoyerDonnees()
+ * Lit l'état du capteur LDR, encode le payload, et envoie la trame LoRaWAN via le RAK3172S.
+ * Affiche les étapes et résultats sur le moniteur série.
  */
-bool envoyer_lora(String payload_hex) {
-    // -- Configuration UART vers RAK3172 --
-    // TODO : adapter les pins selon votre cablage
-    Serial2.begin(115200, SERIAL_8N1, 16, 17);  // RX=GPIO16, TX=GPIO17
-    delay(500);
+void envoyerDonnees() {
+  Serial.println("\n--- Envoi Données ---");
 
-    // -- Configuration LoRaWAN (OTAA) --
-    Serial2.println("AT+NWM=1");   delay(500);  // LoRaWAN
-    Serial2.println("AT+NJM=1");   delay(500);  // OTAA
-    Serial2.println("AT+BAND=4");  delay(500);  // EU868
+  // Lecture de l'état lumineux via vote majoritaire
+  int luminosite = lireLDR(); // 0 = sombre, 1 = lumineux
 
-    // TODO : configurer DevEUI, AppEUI, AppKey depuis config.h
-    // Serial2.println("AT+DEVEUI=" + String(DEVEUI)); delay(500);
-    // Serial2.println("AT+APPEUI=" + String(APPEUI)); delay(500);
-    // Serial2.println("AT+APPKEY=" + String(APPKEY)); delay(500);
+  Serial.print("Luminosité : ");
+  Serial.println(luminosite == 1 ? "LUMINEUX (1)" : "SOMBRE (0)");
 
-    // -- Join OTAA --
-    Serial2.println("AT+JOIN=1:0:10:8");  // Tentatives : 8, délai : 10s
-    attente_join(60);  // Attendre jusqu'à 60 secondes
+  // Encodage du payload : 1 octet — 0x00 (sombre) ou 0x01 (lumineux)
+  char payload[32];
+  sprintf(payload, "AT+SEND=1:%02X", luminosite);
 
-    // -- Envoi du payload --
-    String cmd = "AT+SEND=2:" + payload_hex;
-    Serial2.println(cmd);
-    delay(2000);
+  Serial.print("Payload    : ");
+  Serial.println(payload); // Affiche "AT+SEND=1:00" ou "AT+SEND=1:01"
 
-    // TODO : lire la réponse et retourner true si "+EVT:SEND_CONFIRMED" ou "+EVT:TX_DONE"
-    return true;  // Placeholder
-}
+  // Envoi de la trame LoRaWAN via commande AT
+  envoyerAT(payload, 500);
 
-/**
- * attente_join()
- * Boucle d'attente du Join OTAA avec délai d'attente.
- * Affiche les messages du RAK3172 sur le port Serial de debug.
- */
-void attente_join(int timeout_s) {
-    unsigned long debut = millis();
-    while (millis() - debut < (unsigned long)timeout_s * 1000) {
-        if (Serial2.available()) {
-            String ligne = Serial2.readStringUntil('\n');
-            ligne.trim();
-            Serial.println("[RAK] " + ligne);
-            if (ligne.indexOf("JOINED") >= 0) {
-                Serial.println("[LORA] Join OTAA réussi");
-                return;
-            }
+  // Attente de la confirmation d'envoi par le réseau TTN (timeout 10s)
+  unsigned long debut = millis();
+  while (millis() - debut < 10000) {
+    if (Serial2.available()) {
+      String rep = Serial2.readStringUntil('\n');
+      rep.trim();
+      if (rep.length() > 0) {
+        Serial.println("[RAK] " + rep);
+
+        if (rep.indexOf("+EVT:SEND_CONFIRMED_OK") >= 0) {
+          Serial.println("✅ Trame confirmée par TTN !\n");
+          return;
         }
-        delay(100);
+        if (rep.indexOf("+EVT:SEND_CONFIRMED_FAILED") >= 0) {
+          Serial.println("❌ Confirmation TTN échouée\n");
+          return;
+        }
+      }
     }
-    Serial.println("[LORA] Timeout join OTAA");
+    delay(50);
+  }
+
+  Serial.println("⏱️ Timeout — aucune confirmation reçue dans les 10 secondes\n");
+}
+
+/**
+ * joinOTAA()
+ * Tente de rejoindre le réseau LoRaWAN en mode OTAA.
+ * Affiche les étapes et résultats sur le moniteur série.
+ */
+void joinOTAA() {
+  Serial.println("Tentative de join OTAA (jusqu'à 60 secondes)...");
+  envoyerAT("AT+JOIN=1:0:10:8", 500);
+
+  unsigned long debut = millis();
+  while (millis() - debut < 5000) {
+    if (Serial2.available()) {
+      String rep = Serial2.readStringUntil('\n');
+      rep.trim();
+      if (rep.length() > 0) {
+        Serial.println("[RAK] " + rep);
+
+        if (rep.indexOf("+EVT:JOINED") >= 0) {
+          Serial.println("✅ Join OTAA RÉUSSI — connexion TTN établie\n");
+          loraJoined = true;
+          return;
+        }
+        if (rep.indexOf("+EVT:JOIN_FAILED") >= 0) {
+          Serial.println("❌ Join OTAA ÉCHOUÉ — vérifiez DevEUI / AppEUI / AppKey\n");
+          loraJoined = false;
+          return;
+        }
+      }
+    }
+    delay(50);
+  }
+
+  Serial.println("⏱️ Timeout join. Tapez JOIN dans le moniteur série pour réessayer.\n");
+}
+
+/**
+ * configurerLoRa()
+ * Envoie les commandes AT de configuration LoRaWAN au RAK3272S.
+ * Configure le mode, les paramètres OTAA, et les clés d'identification.
+ */
+void configurerLoRa() {
+  envoyerAT("AT+NWM=1",  2500); // Mode LoRaWAN
+  envoyerAT("AT+NJM=1",   500); // OTAA
+  envoyerAT("AT+BAND=4",  500); // EU868
+  envoyerAT("AT+DEVEUI=" + String(DEVEUI), 500);
+  envoyerAT("AT+APPEUI=" + String(APPEUI), 500);
+  envoyerAT("AT+APPKEY=" + String(APPKEY), 500);
+  Serial.println("✅ Configuration LoRaWAN envoyée au RAK3272S");
+}
+
+/**
+ * envoyerAT()
+ * Envoie une commande AT au RAK3172S et attend une réponse.
+ * @param commande La commande AT à envoyer.
+ * @param timeoutMs Le délai d'attente en millisecondes.
+ * @return La réponse reçue du RAK3172S.
+ */
+String envoyerAT(String commande, unsigned long timeoutMs) {
+  Serial.println("[AT] → " + commande);
+  Serial2.println(commande);
+
+  String reponse = "";
+  unsigned long debut = millis();
+
+  while (millis() - debut < timeoutMs) {
+    while (Serial2.available()) {
+      String ligne = Serial2.readStringUntil('\n');
+      ligne.trim();
+      if (ligne.length() > 0) {
+        Serial.println("[AT] ← " + ligne);
+        reponse += ligne + "\n";
+      }
+    }
+    delay(20);
+  }
+
+  return reponse;
 }
