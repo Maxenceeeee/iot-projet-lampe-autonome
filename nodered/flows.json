@@ -1,0 +1,9 @@
+[
+    {
+        "_comment": "TODO -- Remplacer ce fichier par l'export réel de vos flows Node-RED.",
+        "_instructions": "Menu hamburger -> Export -> All flows -> Download -> renommer en flows.json",
+        "_version": "Node-RED 3.x",
+        "_auteur": "TODO -- Prénom Nom",
+        "_cas_usage": "TODO -- décrire votre cas d'usage"
+    }
+]

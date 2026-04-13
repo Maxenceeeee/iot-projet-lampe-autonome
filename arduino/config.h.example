@@ -1,0 +1,50 @@
+// config.h.example -- Template de configuration
+// IMPORTANT : copier ce fichier en "config.h" et remplir les valeurs réelles.
+//             Ne JAMAIS committer config.h sur GitHub (ajouter config.h dans .gitignore).
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+// ===========================================================================
+// IDENTIFICATION DU DEVICE
+// ===========================================================================
+
+// DevEUI de votre module RAK3172 (16 caractères hex, format LSB)
+// Visible dans la console TTN : End devices -> votre device -> DevEUI
+#define DEVEUI "0000000000000000"  // TODO : remplacer par votre DevEUI
+
+// AppEUI de votre application TTN (16 caractères hex, format LSB)
+#define APPEUI "0000000000000000"  // TODO : remplacer par votre AppEUI
+
+// AppKey de votre application TTN (32 caractères hex, format MSB)
+#define APPKEY "00000000000000000000000000000000"  // TODO : remplacer par votre AppKey
+
+// ===========================================================================
+// PARAMÈTRES LORA (ne pas modifier sauf si nécessaire)
+// ===========================================================================
+
+#define LORA_BAND 4         // EU868 (Europe)
+#define LORA_JOIN_MODE 1    // OTAA (recommande)
+#define LORA_NETWORK_MODE 1 // LoRaWAN
+
+// ===========================================================================
+// CAPTEUR
+// ===========================================================================
+
+// Broche de données du capteur (GPIO ESP32)
+#define SENSOR_PIN 4   // TODO : vérifier selon votre câblage
+
+// Identifiant du device (pour le tag InfluxDB)
+#define DEVICE_ID "esp32-01"  // TODO : modifier si plusieurs devices
+
+// Seuil d'alerte (adapter à votre cas d'usage)
+#define ALERT_THRESHOLD 30.0  // TODO : valeur en unité physique (ex: degrés C)
+
+// ===========================================================================
+// DEEP SLEEP
+// ===========================================================================
+
+// Période de mesure en secondes (60 = 1 mesure par minute)
+#define SLEEP_DURATION_S 60   // TODO : adapter à votre cas d'usage
+
+#endif // CONFIG_H

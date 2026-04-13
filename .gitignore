@@ -1,0 +1,13 @@
+# Secrets -- NE JAMAIS committer
+arduino/main/config.h
+*.env
+.env.*
+
+# Certificats TLS (generes en S8 -- rester locaux)
+docker/mosquitto/certs/
+
+# Fichiers temporaires
+*.tmp
+*.log
+.DS_Store
+desktop.ini

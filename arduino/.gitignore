@@ -1,0 +1,8 @@
+# Fichier de secrets -- NE JAMAIS committer
+config.h
+
+# Fichiers generes par Arduino IDE
+*.elf
+*.bin
+*.map
+build/

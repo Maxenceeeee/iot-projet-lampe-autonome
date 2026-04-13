@@ -1,0 +1,7 @@
+{
+  "__comment": "TODO -- Remplacer ce fichier par l'export réel de votre dashboard Grafana.",
+  "__instructions": "Grafana -> Dashboard -> Paramètres -> JSON Model -> Copy to clipboard",
+  "__version_grafana": "10.x",
+  "__auteur": "TODO -- Prénom Nom",
+  "__cas_usage": "TODO -- décrire votre cas d'usage"
+}

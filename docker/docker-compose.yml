@@ -1,0 +1,114 @@
+version: "3.8"
+
+# Stack MING -- Mosquitto + InfluxDB + Node-RED + Grafana
+# Déploiement sur Raspberry Pi (ARM)
+#
+# Usage :
+#   Démarrer  : docker-compose up -d
+#   Arrêter   : docker-compose down
+#   Logs      : docker-compose logs -f [service]
+#   Status    : docker ps
+#
+# IMPORTANT : modifier les variables d'environnement avant le premier démarrage.
+#             Ne pas committer ce fichier avec des mots de passe réels.
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Mosquitto -- Broker MQTT (port 1883 non chiffré, 8883 TLS)
+  # ---------------------------------------------------------------------------
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"   # MQTT non chiffré (désactiver en prod après S8)
+      - "8883:8883"   # MQTT TLS (activé après S8)
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+      # Monter les certificats TLS (générés en S8) :
+      # - ./mosquitto/certs:/mosquitto/certs:ro
+    networks:
+      - iot_network
+
+  # ---------------------------------------------------------------------------
+  # InfluxDB -- Base de données série temporelle
+  # ---------------------------------------------------------------------------
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=TODO_CHANGER_MOT_DE_PASSE   # TODO
+      - DOCKER_INFLUXDB_INIT_ORG=ynov
+      - DOCKER_INFLUXDB_INIT_BUCKET=iot_data
+      - DOCKER_INFLUXDB_INIT_RETENTION=30d
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=TODO_CHANGER_TOKEN        # TODO
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - iot_network
+
+  # ---------------------------------------------------------------------------
+  # Node-RED -- Traitement des flux IoT
+  # ---------------------------------------------------------------------------
+  nodered:
+    image: nodered/node-red:3.1
+    container_name: nodered
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    environment:
+      - TZ=Europe/Paris
+    volumes:
+      - nodered_data:/data
+      # Importer automatiquement les flows au démarrage :
+      # - ./nodered/flows.json:/data/flows.json:ro
+    networks:
+      - iot_network
+    depends_on:
+      - mosquitto
+      - influxdb
+
+  # ---------------------------------------------------------------------------
+  # Grafana -- Visualisation des données
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana-oss:10.4.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=TODO_CHANGER_MOT_DE_PASSE  # TODO
+      - GF_USERS_ALLOW_SIGN_UP=false   # Hardening S8 : désactive l'enregistrement public
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - iot_network
+    depends_on:
+      - influxdb
+
+# ---------------------------------------------------------------------------
+# Volumes persistants
+# ---------------------------------------------------------------------------
+volumes:
+  mosquitto_data:
+  mosquitto_logs:
+  influxdb_data:
+  nodered_data:
+  grafana_data:
+
+# ---------------------------------------------------------------------------
+# Réseau interne Docker
+# ---------------------------------------------------------------------------
+networks:
+  iot_network:
+    driver: bridge
