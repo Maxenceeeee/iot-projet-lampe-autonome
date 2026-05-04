@@ -1,51 +1,13 @@
 # Architecture du projet -- [TODO : nom du projet]
 
-**Auteur(s) :** _[TODO -- Prenom Nom]_
-**Cas d'usage :** _[TODO -- description]_
-**Capteur :** _[TODO -- modèle + grandeur physique mesurée]_
+**Auteur(s) :** GUILLET Evan + FRAPPIER Maxence
+**Cas d'usage :** Lampe autonome
+**Capteur :** Capteur à photorésistance LDR LM393 (capteur de luminosité)
 
 ---
 
 ## 1. Chaine end-to-end
-
-```
-+------------------+     LoRaWAN (OTAA)      +------------------+
-|   ESP32          |------------------------>|   RAK3172        |
-|   + [capteur]    |  SF7, EU868, duty 1%   |   (module LoRa)  |
-|   Deep Sleep     |                         +------------------+
-|   RTC Memory     |                                  |
-+------------------+                                  | LoRaWAN
-                                                       v
-                                          +-------------------------+
-                                          |   TTN (The Things       |
-                                          |   Network)              |
-                                          |   - Network Server      |
-                                          |   - Application Server  |
-                                          +-------------------------+
-                                                       |
-                                                       | MQTT (port 8883, TLS)
-                                                       | Topic: v3/{app_id}/devices/...
-                                                       v
-                                         +-----------------------------+
-                                         |   Raspberry Pi (Edge)      |
-                                         |   [ Stack MING ]           |
-                                         |                             |
-                                         |  Mosquitto (broker MQTT)   |
-                                         |      | auth + TLS          |
-                                         |      v                     |
-                                         |  Node-RED (traitement)     |
-                                         |   - decode payload hex     |
-                                         |   - regles metier          |
-                                         |      |                     |
-                                         |      v                     |
-                                         |  InfluxDB (stockage)       |
-                                         |   bucket: iot_data         |
-                                         |      |                     |
-                                         |      v                     |
-                                         |  Grafana (visualisation)   |
-                                         |   dashboard + alertes      |
-                                         +-----------------------------+
-```
+<img width="8192" height="636" alt="LoRaWAN Device Data-2026-05-04-141434" src="https://github.com/user-attachments/assets/33ff6012-7130-4f6d-aaf7-5a4a1d1e41af" />
 
 ---
 
@@ -63,12 +25,12 @@
 
 ## 3. Encodage du payload
 
-**Convention :** valeur * [TODO facteur] => int16 => 2 octets big-endian hex
+**Convention :** valeur * 10 => int16 => 2 octets big-endian hex
 
 | Grandeur | Exemple | Calcul | Payload hex |
 |---|---|---|---|
 | Température (TODO) | 23.5 °C | 235 = 0x00EB | `00EB` |
-| [TODO : autre grandeur] | [TODO] | [TODO] | [TODO] |
+| Luminosité | [TODO] | [TODO] | [TODO] |
 
 **Code de décodage (nœud Function Node-RED) :**
 
@@ -132,5 +94,3 @@ return msg;
 
 ---
 
-_TODO : ajouter un schéma Excalidraw ou Draw.io de l'architecture si possible_
-_Remplacer tous les TODO par vos valeurs réelles avant la soutenance_
