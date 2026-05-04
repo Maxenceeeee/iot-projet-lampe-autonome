@@ -37,7 +37,7 @@ ESP32 (capteur) communique en LoRaWAN (OTAA, SF7, EU868) vers un RAK3172, puis T
 | docker-compose.yml | docker/docker-compose.yml | DONE |
 | Configuration Mosquitto | docker/mosquitto/mosquitto.conf | DONE |
 | Schema d'architecture | docs/architecture.md | TODO |
-| Fiche RGPD | docs/rgpd.md | TODO |
+| Fiche RGPD | docs/rgpd.md | DONE |
 
 ---
 
@@ -79,15 +79,15 @@ Ouvrir docs/rgpd.md et remplir le tableau avec vos donnees reelles.
 
 ## Checklist avant la soutenance
 
-- [ ] Code Arduino compile sans erreur
+- [X] Code Arduino compile sans erreur
 - [ ] ESP32 joint le reseau TTN (Live Data visible)
 - [ ] Flow Node-RED receptionne et decode les donnees
 - [ ] Donnees visibles dans InfluxDB (au moins 24h historique)
-- [ ] Dashboard Grafana avec 3 panneaux minimum
+- [X] Dashboard Grafana avec 3 panneaux minimum
 - [ ] Authentification Mosquitto activee
-- [ ] Dashboard exporte en JSON
-- [ ] Fiche RGPD completee
-- [ ] README.md mis a jour avec le nom du projet
+- [X] Dashboard exporte en JSON
+- [X] Fiche RGPD completee
+- [X] README.md mis a jour avec le nom du projet
 
 ---
 
