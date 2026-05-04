@@ -10,11 +10,10 @@
 
 **Nom du projet :** _[A completer]_
 
-**Auteur(s) :** _[Prenom Nom] ou [Prenom Nom] + [Prenom Nom]_
+**Auteur(s) :** GUILLET Evan + FRAPPIER Maxence
 
-**Cas d'usage choisi :** _[Ex: Station meteo connectee, Detecteur de presence]_
-
-**Capteur principal :** _[Ex: DHT22 (temperature/humidite), PIR, BMP280, LDR...]_
+**Cas d'usage choisi :** Lampe autonome
+**Capteur principal :** Module de photorésistance LDR LM393 (capteur de luminosité)
 
 ---
 
