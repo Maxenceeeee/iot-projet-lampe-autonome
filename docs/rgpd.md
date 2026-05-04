@@ -1,8 +1,8 @@
 # Fiche RGPD -- Projet IoT
 
-**Auteur(s) :** _[TODO -- Prenom Nom]_
-**Cas d'usage :** _[TODO -- description]_
-**Date :** _[TODO -- date de redaction]_
+**Auteur(s) :** GUILLET Evan + FRAPPIER Maxence
+**Cas d'usage :** Lampe autonome
+**Date :** 04/05/2026
 
 > Ce document est requis pour la soutenance (partie Sécurité & RGPD, 5 min).
 > Il répond aux exigences de l'article 32 du RGPD et illustre la méthodologie
@@ -14,8 +14,7 @@
 
 | Donnée collectée | Type | Capteur | Fréquence | Durée de rétention | Qualifié de DCP ? |
 |---|---|---|---|---|---|
-| TODO (ex: Température) | Numérique (float) | TODO (ex: DHT22) | TODO (ex: 1/min) | 30 jours | Non -- donnée physique |
-| TODO (ex: Humidité) | Numérique (float) | TODO (ex: DHT22) | TODO (ex: 1/min) | 30 jours | Non -- donnée physique |
+| Luminosité | Numérique (int) | LDR LM393 | 1/min | 30 jours | Non -- donnée physique |
 | DevEUI du device | Identifiant | RAK3172 | À chaque join | 30 jours | **Potentiellement** -- identifiant unique |
 | Métadonnées TTN (RSSI, SNR, gateway_id) | Métadonnée réseau | TTN | À chaque envoi | 30 jours | **Potentiellement** -- géolocalisation indirecte |
 
@@ -27,15 +26,11 @@
 
 ### Analyse spécifique au cas d'usage
 
-> TODO : décrire ici si les données collectées dans votre cas d'usage peuvent
+> décrire ici si les données collectées dans votre cas d'usage peuvent
 > qualifier de DCP. Justifier en une phrase.
 >
-> Exemple (présence) : "Un capteur PIR détectant des mouvements dans un domicile
-> privé permet d'inférer des habitudes de vie. Ces données qualifient de DCP
-> au sens de l'art. 4(1) RGPD."
->
-> Exemple (température extérieure) : "La température extérieure mesurée sur une
-> terrasse ne permet pas d'identifier une personne. Ces données ne qualifient
+> Luminosité ambiante : "La luminosité ambiante mesurée dans une
+> pièce ne permet pas d'identifier une personne. Ces données ne qualifient
 > pas de DCP. Cependant, les métadonnées TTN (gateway_id, RSSI) permettant
 > une géolocalisation indirecte sont traitées avec prudence."
 
@@ -64,14 +59,12 @@
 ---
 
 ## 3. Droits des personnes (Art. 15-22 RGPD)
-
-> TODO : adapter selon votre cas d'usage.
 >
 > Si le projet collecte des données pouvant qualifier de DCP :
 
 | Droit | Moyen d'exercice | Délai de réponse |
 |---|---|---|
-| Accès (art. 15) | Demande par email à [TODO : contact] | 30 jours |
+| Accès (art. 15) | Demande par email à lampautonome@gmail.com | 30 jours |
 | Rectification (art. 16) | Modification manuelle dans InfluxDB | 30 jours |
 | Effacement (art. 17) | Suppression du bucket ou filtre temporel | 30 jours |
 | Portabilité (art. 20) | Export CSV depuis InfluxDB Data Explorer | 30 jours |
@@ -88,7 +81,7 @@
 > Utiliser ce bloc comme guide pour la partie RGPD de la soutenance.
 
 **Point 1 : Identification des données sensibles**
-_"Les données collectées par notre projet sont [TODO]. [Elles qualifient / ne qualifient pas] de DCP car [TODO justification]."_
+_"Les données collectées par notre projet sont les données de luminosité ambiante, par le capteur LDR LM393. L'identifiant unique du device (DevEUI), ainsi que la localisation, par les métadonnées TTN. Individuellement, la luminosité recuellie ne qualifie pas de DCP car elle ne permet pas d'identifier à elle seule un individu, cependant en la couplant à la géolocalisation indirecte des métadonnées TTN et l'identifiant unique du device, cela peut mener à cette identification."_
 
 **Point 2 : Mesures techniques appliquées (Art. 32)**
 _"Nous avons appliqué les mesures suivantes en S8 : authentification Mosquitto, TLS port 8883, renouvellement du token InfluxDB, hardening Grafana. Ces mesures sont appropriées au risque identifié (accès non autorisé sur réseau local)."_
