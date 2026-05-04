@@ -887,14 +887,14 @@ Node-RED est le **cerveau de traitement** de la stack MING. Il reçoit les messa
 ```mermaid
 flowchart LR
 
-MQTT[MQTT in TTN] --> DEC[Function: décodage payload]
-DEC --> SW[Switch: règle métier]
-SW --> INF[Function: format InfluxDB]
+MQTT[MQTT in TTN] --> DEC[Function decodage payload]
+DEC --> SW[Switch regle metier]
+SW --> INF[Function format InfluxDB]
 INF --> OUT[InfluxDB out]
 
-SW -->|Sortie 1: alerte| DBG[Debug "ALERTE"]
-DBG --> CHG[Change: msg.payload = ON]
-CHG --> PUB[MQTT out: actionneur/led]
+SW -->|Sortie 1 alerte| DBG[Debug ALERTE]
+DBG --> CHG[Change msg.payload ON]
+CHG --> PUB[MQTT out actionneur led]
 ```
 
 ### Étape 1 — Noeud MQTT in (réception TTN)
