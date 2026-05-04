@@ -13,6 +13,7 @@
 **Auteur(s) :** GUILLET Evan + FRAPPIER Maxence
 
 **Cas d'usage choisi :** Lampe autonome
+
 **Capteur principal :** Module de photorésistance LDR LM393 (capteur de luminosité)
 
 ---
