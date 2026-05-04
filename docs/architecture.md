@@ -16,7 +16,7 @@
 | Parametre | Valeur | Justification |
 |---|---|---|
 | Mode | OTAA | Plus sécurisé qu'ABP (re-négociation des clés à chaque join) |
-| Spreading Factor | SF7 | TODO : adapter selon la distance et la consommation |
+| Spreading Factor | SF7 | SF7 par défaut (faible consommation, latence faible) |
 | Bande | EU868 | Europe (8 canaux, 125 kHz BW) |
 | Duty cycle | 1% | Réglementation ETSI EU868 |
 | DevEUI | [dans config.h] | Identifiant unique du device |
