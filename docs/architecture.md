@@ -1,4 +1,4 @@
-# Architecture du projet -- [TODO : nom du projet]
+# Architecture du projet -- Projet IoT Lampe Autonome
 
 **Auteur(s) :** GUILLET Evan + FRAPPIER Maxence
 **Cas d'usage :** Lampe autonome
