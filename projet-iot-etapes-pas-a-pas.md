@@ -160,9 +160,6 @@ graph TD
     RAK_RX["RAK RX"] <--> GPIO17
     RAK_VCC["RAK VCC"] --> PWR3V3
     RAK_GND["RAK GND"] --> GND
-
-    %% Style
-    style ESP32 fill:#f9f9f9,stroke:#333,stroke-width:2px
 ```
 
 ---
