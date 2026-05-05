@@ -8,7 +8,7 @@
 
 ## Description du projet
 
-**Nom du projet :** _[A completer]_
+**Nom du projet :** Projet IoT Lampe Autonome
 
 **Auteur(s) :** GUILLET Evan + FRAPPIER Maxence
 
